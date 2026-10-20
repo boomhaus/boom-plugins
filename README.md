@@ -1,1 +1,1 @@
-# boomhaus-plugins
+# boom-plugins

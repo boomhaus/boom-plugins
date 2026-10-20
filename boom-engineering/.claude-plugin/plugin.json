@@ -1,0 +1,8 @@
+{
+  "name": "boom-engineering",
+  "version": "0.1.0",
+  "description": "Engineering workflow tools: code review, context-file maintenance, testing review, and feasibility analysis.",
+  "author": {
+    "name": "rojcyk"
+  }
+}

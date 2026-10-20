@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  },
+  "enabledPlugins": {
+    "boom-meta@boom-plugins": true,
+    "boom-engineering@boom-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "boom-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
+  }
+}
