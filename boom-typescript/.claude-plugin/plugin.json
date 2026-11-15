@@ -1,0 +1,8 @@
+{
+  "name": "boom-typescript",
+  "version": "0.1.0",
+  "description": "TypeScript standards: type safety, code clarity, and maintainability guidelines, plus testing standards for tests that catch real regressions.",
+  "author": {
+    "name": "rojcyk"
+  }
+}

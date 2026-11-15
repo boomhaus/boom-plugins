@@ -1,6 +1,6 @@
 {
   "name": "boom-plugins",
-  "description": "Boomhaus Claude Code plugins: business evaluation, engineering workflows, and plugin-authoring tools.",
+  "description": "Boomhaus Claude Code plugins: business evaluation, engineering workflows, TypeScript standards, and plugin-authoring tools.",
   "owner": {
     "name": "rojcyk"
   },
@@ -19,6 +19,11 @@
       "name": "boom-meta",
       "source": "./boom-meta",
       "description": "Meta-tooling for authoring the rest of the plugin ecosystem: scaffolds new skills, agents, and MCP servers, and evaluates skills through iterative benchmarks."
+    },
+    {
+      "name": "boom-typescript",
+      "source": "./boom-typescript",
+      "description": "TypeScript standards: type safety, code clarity, and maintainability guidelines, plus testing standards for tests that catch real regressions."
     }
   ]
 }
