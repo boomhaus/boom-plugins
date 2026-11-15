@@ -16,10 +16,10 @@ Build a well-structured Claude Code plugin agent through guided co-design.
 ## Core Principles
 
 1. **Classify, don't ask taxonomy.** Determine the agent archetype from what the user describes. Never ask "is this a review or builder agent?" Infer it, state the classification, let the user correct.
-2. **Composability over autonomy.** Every agent must produce structured output that downstream consumers can parse without custom logic. Free-form prose is not composable.
+2. **Composability over autonomy.** An agent cannot know what will consume its output, so every agent produces structured output that any consumer can parse without custom logic. Free-form prose is not composable.
 3. **Scope by exclusion.** An agent without explicit boundaries expands into adjacent territory and produces noise. Every agent must state what it does not do.
 4. **Constraints at decision points.** State behavioral rules where the agent is tempted to violate them, not only in the preamble.
-5. **Context cost is real.** Agent markdown is loaded into context on every invocation. Target 45-85 lines for review agents, 80-185 for builder/validator agents. Beyond 100 lines, split to reference files.
+5. **Context cost is real.** Agent markdown is loaded into context on every invocation. Hold each agent to the length target for its archetype (see 3.3) and split to reference files past the threshold.
 
 ## Phase 0: Understand the Intent
 
@@ -39,13 +39,14 @@ From the response, extract:
 
 ### 1.1 Determine Archetype
 
-Classify the agent into one of three archetypes:
+Classify the agent into one of four archetypes:
 
 | Archetype | Function | Output | Tool Access | Model Tier |
 |---|---|---|---|---|
 | **Review** | Read code/content, produce findings | Structured JSON: `{ agent, findings[], residual_risks[], scoring }` | Read, Grep, Glob | `opus` (final judgment) or `sonnet` (triage) |
 | **Builder** | Create or modify artifacts | Structured JSON: `{ agent, files_created[], files_modified[], assumptions[], decisions[] }` | Read, Write, Glob, Grep | `sonnet` (creation) or `opus` (code modification with judgment) |
-| **Validator** | Run pass/fail checks against spec | Structured report: `{ agent, status: PASS\|FAIL\|WARNINGS, checks[], summary }` | Read, Grep, Glob, Bash | `sonnet` (standard checks) or `opus` (complex validation) |
+| **Validator** | Run pass/fail checks against a spec, statically or by running the product and asserting on its state | Structured report: `{ agent, status: PASS\|FAIL\|WARNINGS, checks[], summary }` | Read, Grep, Glob, Bash | `sonnet` (standard checks) or `opus` (complex validation) |
+| **Explorer** | Investigate code or external sources, report what was found | Structured JSON: `{ agent, answer, evidence[], open_questions[] }` | Read, Grep, Glob, WebFetch, WebSearch | `sonnet` |
 
 Signals for classification:
 
@@ -54,7 +55,7 @@ Signals for classification:
 | "review", "analyze", "check for", "find issues", "audit" | Review |
 | "create", "generate", "build", "scaffold", "write" | Builder |
 | "validate", "verify", "ensure", "check structure", "test compliance" | Validator |
-| "explore", "search", "investigate", "understand" | Builder (exploration subtype) |
+| "explore", "search", "investigate", "understand" | Explorer |
 
 ### 1.2 Assign Color
 
@@ -92,7 +93,7 @@ Restrict tools to the minimum required. Do not give review agents Write. Do not 
 
 Present the classification to the user in this format:
 
-> **Archetype:** [Review/Builder/Validator]
+> **Archetype:** [Review/Builder/Validator/Explorer]
 > **Color:** [color] -- [reason]
 > **Model:** [opus/sonnet/inherit] -- [reason]
 > **Tools:** [list] -- [reason for any non-default additions]
@@ -121,7 +122,7 @@ description: "Activation description (see 2.2)"
 
 | Field | Values | Default | Purpose |
 |---|---|---|---|
-| `model` | `sonnet`, `opus`, `haiku`, full ID (e.g. `claude-opus-4-7`), `inherit` | `inherit` | Model tier (see 1.3) |
+| `model` | `sonnet`, `opus`, `haiku`, full model ID, `inherit` | `inherit` | Model tier (see 1.3) |
 | `tools` | Comma-separated tool names | Inherits all | Allowlist of tools the agent can use (see 1.4) |
 | `disallowedTools` | Comma-separated tool names | None | Denylist applied before `tools` resolves |
 | `color` | `red`, `blue`, `green`, `yellow`, `orange`, `cyan`, `purple`, `pink` | None | Display color (see 1.2) |
@@ -133,20 +134,17 @@ description: "Activation description (see 2.2)"
 | Field | Values | Default | Purpose |
 |---|---|---|---|
 | `skills` | List of skill names | None (subagents do not inherit parent skills) | Preload skill content into context at startup. Full content is injected, not just made available. List explicitly -- subagents get no skills unless specified |
-| `mcpServers` | List of server names or inline definitions | None | MCP servers scoped to this agent. Reference by name (reuses configured server) or define inline with full config |
-| `hooks` | Hook event definitions | None | Lifecycle hooks scoped to this agent (`PreToolUse`, `PostToolUse`, `Stop`) |
 | `memory` | `user`, `project`, `local` | None | Persistent memory across sessions. `user` = global, `project` = shareable via VCS, `local` = project-specific gitignored |
 
 #### Execution fields
 
 | Field | Values | Default | Purpose |
 |---|---|---|---|
-| `permissionMode` | `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan` | `default` | Permission handling. `plan` = read-only exploration. `acceptEdits` = auto-accept file edits. `dontAsk` = auto-deny prompts |
 | `background` | `true`, `false` | `false` | Always run as background task. Permissions pre-approved at launch |
 | `isolation` | `worktree` | None | Run in temporary git worktree for isolated repo copy |
 | `initialPrompt` | String | None | Auto-submitted as first user turn when agent runs as main session via `--agent` |
 
-**Security note:** Plugin agents cannot use `hooks`, `mcpServers`, or `permissionMode`. These fields are ignored when loading agents from plugins.
+**Do not set `hooks`, `mcpServers`, or `permissionMode`.** Plugin agents ignore them. If the user needs one of these, the agent must live in `.claude/agents/` instead of a plugin; say so.
 
 #### Skills field detail
 
@@ -159,6 +157,32 @@ skills:
 ```
 
 Use `skills` when the agent needs domain knowledge that exists as a skill in the project. This replaces the need for agents to read reference files at runtime -- the content is available from the first turn.
+
+#### Skills and agents from other plugins
+
+An agent composes with other components by naming them: skills in its `skills` list, and other agents it dispatches or defers to in its exclusions. A named component is only there if its plugin is installed, so how to reference it depends on where it lives:
+
+| Referenced skill or agent lives in | Reliable? | What to do |
+|---|---|---|
+| The same plugin | Always; they ship together | Reference it by name |
+| Another plugin in the same marketplace | Yes, once declared | Add that plugin to `dependencies` in this plugin's `.claude-plugin/plugin.json` |
+| A plugin in another marketplace | Only if this marketplace allowlists it | Do not list it in `skills`. Mention it in the body as optional: "If `<name>` is available, use it for X" |
+
+Declaring a dependency:
+
+```json
+{
+  "name": "this-plugin",
+  "dependencies": [
+    "other-plugin",
+    { "name": "another-plugin", "version": "^1.0" }
+  ]
+}
+```
+
+A bare name resolves against this plugin's own marketplace, and a missing dependency is installed along with the plugin. The cost is that this plugin no longer loads without the other one. When the plugin should stay installable on its own, keep the reference optional and skip the declaration.
+
+Refer to components in other plugins by their namespaced name (`plugin-name:skill-name`, `plugin-name:agent-name`). When the new agent references one, tell the user which form you chose and why, and for the declared form edit `plugin.json` in Phase 4.
 
 ### 2.2 Description and Activation Routing
 
@@ -240,9 +264,18 @@ Each bullet: category name for scanning, scenario for understanding. Bullets mus
 2. **Command frontmatter** -- every .md file in commands/ has valid YAML frontmatter with name field
 ```
 
+**Explorer agents** -- questions to answer. Bullets naming what the agent must find out and where it looks:
+
+```markdown
+## What you find out
+
+- **Where it lives** -- the files and entry points that implement the feature, found by searching before reading
+- **How it connects** -- callers, dependencies, and configuration that affect its behavior
+```
+
 ### 2.5 Scoring and Noise Suppression
 
-**Required for review agents. Optional for validators. Not applicable for builders.**
+**Required for review agents. Optional for validators. Not applicable for builders or explorers.**
 
 Use 0-100 confidence scale with suppress-below-70 directive:
 
@@ -270,7 +303,7 @@ Domain-specific overrides:
 
 ### 2.6 Exclusions
 
-Every agent must have an exclusion section. Two forms:
+Every agent must have an exclusion section. One form per archetype:
 
 **Review agents** -- "What you don't flag":
 
@@ -301,6 +334,15 @@ Name the sibling agent that owns the excluded domain when the agent is part of a
 
 - Code quality or style -- this agent validates structure, not content
 - Test coverage -- validated separately
+```
+
+**Explorer agents** -- scope limitation:
+
+```markdown
+## Scope
+
+- Report what exists. Do not propose fixes or redesigns unless the task asks for them.
+- Do not modify files. Stop and report when the question is answered.
 ```
 
 ### 2.7 Output Format
@@ -339,7 +381,7 @@ Assemble the agent body following this skeleton. Sections marked [conditional] a
 
 [Persona paragraph -- identity, lens, differentiator]
 
-## What you hunt for / Process / Validation checks
+## What you hunt for / Process / Validation checks / What you find out
 [Scoped responsibilities per archetype]
 
 ## Confidence scoring [conditional: review agents only]
@@ -357,13 +399,13 @@ Assemble the agent body following this skeleton. Sections marked [conditional] a
 
 ### 3.2 Formatting Rules
 
-Maintain visual consistency across all agents:
+Defaults that keep agents visually consistent. Depart from one when the content does not fit it:
 
 - **Tables** for any content with 2+ dimensions (confidence tiers, tool access, severity mapping)
 - **Bold-prefixed bullets with double-dash** (`**Category** -- scenario`) for hunting categories and exclusions
 - **Numbered lists** for sequential process steps
 - **Fenced code blocks** for output format templates
-- **No narrative prose** between sections. Each section is self-contained.
+- **Self-contained sections.** Keep connecting prose between sections to what the agent needs to act.
 
 ### 3.3 Length Targets
 
@@ -372,6 +414,7 @@ Maintain visual consistency across all agents:
 | Review agent | 45-85 | >85 lines: move reference material to skill references |
 | Builder agent | 80-150 | >150 lines: split process steps into reference file |
 | Validator agent | 80-185 | >185 lines: split validation checklists into reference file |
+| Explorer agent | 45-85 | >85 lines: move reference material to skill references |
 
 Constraint: if the agent exceeds its target range, justify every additional line. Length correlates with diluted focus, not thoroughness.
 
@@ -396,9 +439,11 @@ Before presenting the result, verify:
 | Check | Required for |
 |---|---|
 | Persona has identity + lens + differentiator | All agents |
-| Description has 2-3 `<example>` blocks with `<commentary>` | All agents |
+| Description is plain text (narrow or orchestrator-dispatched trigger) | Unambiguous agents |
+| Description has 2-3 `<example>` blocks with `<commentary>` | Multi-scenario agents |
 | Model tier is explicitly set (not omitted) | All agents |
 | Tool access is restricted to minimum needed | All agents |
+| Every skill or agent referenced from another plugin is either declared in `plugin.json` `dependencies` or mentioned as optional | Agents with cross-plugin references |
 | Color is assigned per the color table | All agents |
 | Output format section exists with JSON template | All agents |
 | Confidence scoring with suppress-below-70 | Review agents |
@@ -407,8 +452,19 @@ Before presenting the result, verify:
 | Finding IDs use `agent-name-NNN` format | Pipeline agents |
 | Line count is within target range | All agents |
 
-### 4.3 Pipeline Verification (Multi-Agent Sets Only)
+### 4.3 Trial Run
+
+The checklist shows the agent is well-formed, not that it works. Before handing over, check both:
+
+- **Does it work.** Dispatch the agent once on a realistic sample task. An agent written in this session may not be registered yet; if so, dispatch a general-purpose subagent with the agent body as its prompt. Confirm the output parses against the template, stays inside the agent's scope, and (review agents) respects the confidence threshold. Each failure becomes a fix.
+- **Does it trigger.** Write two or three requests that should route to the agent and one near-miss that should not. Check the description against each and revise it if any would route wrongly.
+
+### 4.4 Pipeline Verification (Multi-Agent Sets Only)
 
 When designing multiple agents together, run the pipeline verification checklist from `references/pipeline-patterns.md`.
 
-Present the complete file and ask the user to review.
+Present the complete file and the trial result, and ask the user to review.
+
+## Gotchas
+
+Add an entry here whenever this skill produces an agent that needed correcting: what went wrong, and what to do instead.

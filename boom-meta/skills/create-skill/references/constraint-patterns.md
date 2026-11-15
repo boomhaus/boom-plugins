@@ -1,8 +1,8 @@
 # Constraint Design Patterns
 
-## Why Constraints Matter More Than Content
+## Where Constraints Earn Their Place
 
-A skill with excellent reference content and weak constraints will produce inconsistent output. A skill with adequate reference content and strong constraints will produce consistent output. Constraints are the highest-leverage content in any skill.
+Constraints are for the points where a wrong move is costly or where the model predictably takes a shortcut. Everywhere else, give the goal and the relevant facts and let the model adapt: a skill is reused in situations its author did not foresee, and a rule written for one of them misfires in the others.
 
 The model under pressure (long context, complex task, ambiguous input) will take shortcuts. Constraints are the mechanism that prevents shortcuts from landing.
 
@@ -58,11 +58,11 @@ The constraint is visible in the document outline. The model sees it before read
 
 | Rule | Do | Don't |
 |---|---|---|
-| **Absolute language** | "NEVER", "ALWAYS", "Do not", "Must", "Required" | "try to avoid", "prefer not to", "consider", "generally" |
+| **Match force to stakes** | Absolutes ("Never", "Do not", "Must") for rules whose violation breaks or destroys something. Plain directives with a reason ("Use X, because Y") for the rest | Capitalised absolutes on preferences. Hedges ("try to avoid", "consider", "generally") on hard rules |
 | **Pair with rationale** | "Do not use `data_only=True` -- this replaces all formulas with cached values. If saved, formulas are permanently destroyed." | "Do not use `data_only=True`." |
 | **Vivid consequences** | Name the failure mode explicitly | Leave the cost of violation unstated |
 
-Soft language gets soft compliance. The model treats "prefer not to" as a suggestion to weigh against convenience. "NEVER" is treated as a hard boundary.
+Hedged language on a hard rule gets soft compliance: the model treats "prefer not to" as a suggestion to weigh against convenience. Absolutes on everything fail the other way: the model applies them in cases the author never intended, and the rules that really are hard stop standing out.
 
 A constraint without a reason gets discarded when the model decides the situation is "different." A constraint with a reason gets respected because the model can evaluate whether the reason still applies.
 
@@ -102,7 +102,4 @@ Each row is a specific stuck-state with a specific escape route. The model does 
 
 Process skills need more constraints because they have more decision points. Capability skills need fewer because code examples are self-constraining (the WRONG/CORRECT pair is itself a constraint).
 
-| Metric | Target |
-|---|---|
-| Constraints per major section (H2) | At least one |
-| Section with no constraint | Ask: could the model produce wrong output here? If yes, add a constraint. If no, the section may be unnecessary. |
+There is no quota. For each major section ask: could the model produce wrong output here? If yes, add a constraint. If no, leave it without one.

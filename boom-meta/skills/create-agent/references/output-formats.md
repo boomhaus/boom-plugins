@@ -67,6 +67,29 @@ Rules:
 - `assumptions` capture anything the agent inferred rather than was told. Downstream humans use this to spot divergence from intent.
 - `decisions` record non-obvious choices, not routine ones.
 
+## Explorer Agent
+
+```json
+{
+  "agent": "agent-name",
+  "answer": "Direct answer to the question the agent was asked.",
+  "evidence": [
+    {
+      "location": "path/to/file.ts:42",
+      "detail": "What this location shows and why it supports the answer."
+    }
+  ],
+  "open_questions": [
+    "What could not be determined, and what would settle it."
+  ]
+}
+```
+
+Rules:
+- `answer` comes first and stands on its own. The caller may read nothing else.
+- Every claim in `answer` is backed by an `evidence` entry. `location` is `path/to/file:line` for code, or a URL for external sources.
+- `open_questions` is empty when the question was fully answered. Do not pad it.
+
 ## Validator Agent
 
 ```json

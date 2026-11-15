@@ -17,8 +17,9 @@ A capability skill typically follows this skeleton. Not every section is require
 ## Design / Style Guidance
 [When the skill produces visual or formatted output. Color palettes, typography, layout.]
 
-## Common Pitfalls
-[WRONG/CORRECT pairs. Named failure modes with fixes.]
+## Gotchas
+[Failures Claude actually hits in this domain. WRONG/CORRECT pairs or one line each
+ with the correct behavior. Add an entry whenever the skill produces a wrong result.]
 
 ## Dependencies
 [Tools, libraries, CLI requirements with install commands.]

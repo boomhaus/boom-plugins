@@ -63,7 +63,7 @@ export default {
 ```toml
 name = "my-mcp-server"
 main = "src/index.ts"
-compatibility_date = "2025-01-01"
+compatibility_date = "<today's date, YYYY-MM-DD>"
 
 [durable_objects]
 bindings = [

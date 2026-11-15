@@ -18,15 +18,19 @@ Process skills organize as numbered phases. Not every phase is required -- inclu
 
 ## Final Phase: Close and Handoff
 [Structured output, handoff options, file write]
+
+## Gotchas
+[Failures Claude actually hits when running this workflow, one line each with the
+ correct behavior. Add an entry whenever the skill produces a wrong result.]
 ```
 
 ### Phase 0: Resume, Assess, and Route (universal)
 
-Every process skill should open with Phase 0. Three responsibilities:
+Every process skill should open with Phase 0. Up to three responsibilities:
 
 | Responsibility | What it does |
 |---|---|
-| **Resume detection** | Check for prior work. Scan expected output directory for recent files matching the skill's output pattern. Offer to resume rather than starting fresh. |
+| **Resume detection** | Only when the skill writes artifacts that outlive a session. Check for prior work. Scan expected output directory for recent files matching the skill's output pattern. Offer to resume rather than starting fresh. |
 | **Scope classification** | Determine scope from user input. Common tiering: Lightweight / Standard / Deep. Classify from signals, present, let user override. Different tiers gate different behaviors in subsequent phases. |
 | **Routing** | If the request does not match this skill, redirect. If ambiguous, surface the ambiguity and ask one clarifying question. |
 
@@ -173,6 +177,6 @@ The description should include:
 
 | Score | Criteria |
 |---|---|
-| 5/5 | Every phase has explicit entry/exit conditions. Decision points use tables or enumerated conditions. Agent dispatch specifies role, model tier, condition, and return format. Constraints at point of decision. Output templates define exact fields. Skill can be followed mechanically. |
-| 4/5 | Most of the above but leaves some decision points open to model judgment, or uses vague framing ("explore approaches") without enumerating what exploration means. |
+| 5/5 | Every phase has explicit entry/exit conditions. Decision points use tables or enumerated conditions. Agent dispatch specifies role, model tier, condition, and return format. Constraints at point of decision. Output templates define exact fields. Where judgment is left to the model, the skill says so and gives the goal. |
+| 4/5 | Most of the above but leaves some decision points open without saying so, or uses vague framing ("explore approaches") without enumerating what exploration means. |
 | 3/5 or below | Phases without entry/exit conditions. Prose heuristics instead of decision tables. Agent dispatch without model tier or return format. Constraints only at the top. |

@@ -8,12 +8,14 @@ Three testing layers, in order of speed. Each catches things the previous one ca
 
 Feed raw JSON-RPC messages into the server. Parse responses. Fast iteration for protocol correctness.
 
+Replace `<PROTOCOL_VERSION>` in the messages below with the latest stable MCP spec revision (a date string; check the current spec).
+
 ### stdio server
 
 Create a `test.jsonl` file with one JSON-RPC message per line:
 
 ```jsonl
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"<PROTOCOL_VERSION>","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}
 {"jsonrpc":"2.0","method":"notifications/initialized"}
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"your_tool","arguments":{"query":"test"}}}
@@ -36,14 +38,14 @@ Use curl:
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"<PROTOCOL_VERSION>","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}'
 
 # List tools (include session ID from init response)
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "Mcp-Session-Id: <session-id-from-init>" \
-  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "MCP-Protocol-Version: <PROTOCOL_VERSION>" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 ```
 
@@ -82,7 +84,9 @@ npx @modelcontextprotocol/inspector --url http://localhost:3000/mcp
 
 ## Layer 3: Real Claude testing
 
-Add the server as a custom connector at claude.ai via Settings > Connectors. For local servers, use a Cloudflare tunnel:
+### Remote HTTP server
+
+Add the server as a custom connector at claude.ai via Settings > Connectors. For an HTTP server still running on localhost, use a Cloudflare tunnel:
 
 ```bash
 # Expose local server to the internet
@@ -90,6 +94,16 @@ npx cloudflared tunnel --url http://localhost:3000
 ```
 
 Use the generated URL as the connector endpoint.
+
+### Local stdio server
+
+A stdio server cannot be a claude.ai connector. Register it with Claude Code instead:
+
+```bash
+claude mcp add my-server -- node dist/index.js
+```
+
+Or add the same command to Claude Desktop's MCP server config. Then test in a fresh session.
 
 Claude identifies itself with `clientInfo.name: "claude-ai"` during initialization.
 

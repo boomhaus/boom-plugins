@@ -137,7 +137,7 @@ app.listen(PORT, () => {
 
 ---
 
-## Python (FastMCP 3.x)
+## Python (FastMCP)
 
 ### Setup
 

@@ -62,7 +62,7 @@ This determines the tool design pattern in Phase 3.
 | 15-30 | Audit for near-duplicates, one-per-action if clean |
 | 30+ | Search + execute |
 
-**Push back on tool count.** Before accepting the user's initial list, question whether each tool carries its own weight. Every tool schema consumes context tokens on every turn. Thirty tools with rich schemas can eat 3-5k tokens before the conversation starts. Suggest consolidation of closely related operations. Merge commonly chained calls into single higher-level tools. But always defer to the user's judgment after making the case.
+The count is provisional; Phase 3 challenges the list before it is final.
 
 ### 4. What auth does the upstream service use?
 
@@ -110,7 +110,7 @@ A script launched via npx/uvx on the user's machine. Acceptable for personal too
 
 See `references/local-scaffold.md`.
 
-**After choosing a deployment model, surface the relevant anti-patterns from the Anti-Patterns section at the end of this file. Common anti-patterns always apply. Deployment-specific anti-patterns apply only to the chosen path.**
+**After the user chooses a deployment model, read `references/anti-patterns.md` and surface the common anti-patterns plus the ones for the chosen path.**
 
 ---
 
@@ -118,7 +118,7 @@ See `references/local-scaffold.md`.
 
 > **Entry:** Deployment model chosen. **Exit:** Tool pattern selected, user has confirmed tool list.
 
-**Constraint: push back on tool count.** Every tool schema consumes context tokens on every turn. Before accepting the user's list, question whether each tool carries its own weight. Make the case for consolidation, then defer to the user.
+**Constraint: push back on tool count.** Every tool schema consumes context tokens on every turn; thirty tools with rich schemas can eat 3-5k tokens before the conversation starts. Before accepting the user's list, question whether each tool carries its own weight: could it merge with an existing tool, is it a variant that differs by one parameter, are two tools always called in sequence? If the user cannot name a case where Claude would pick this tool over another, it probably should not be separate. Make the case for consolidation, then defer to the user.
 
 ### Pattern A: One tool per action (small surface, default)
 
@@ -132,8 +132,6 @@ add_comment     -- Add a comment to an issue. Params: issue_id, body
 ```
 
 Each tool's schema validates inputs precisely. No discovery round-trips.
-
-**Challenge every addition.** Before adding a tool, ask: does this action justify consuming context tokens on every turn? Could it merge with an existing tool? Is it a variant of another tool that differs only by one parameter? If the user cannot articulate a distinct use case where Claude would select this tool over an existing one, it probably should not exist as a separate tool. Make the case for consolidation, but defer to the user.
 
 ### Pattern B: Search + execute (large surface)
 
@@ -162,9 +160,11 @@ See `references/tool-design.md` for schema examples, description writing, and an
 | Framework | Language | Use when |
 |---|---|---|
 | Official TypeScript SDK (`@modelcontextprotocol/sdk`) | TS/JS | Default choice. Best spec coverage, first to get new features. |
-| FastMCP 3.x (`fastmcp` on PyPI) | Python | User prefers Python or is wrapping a Python library. Decorator-based, low boilerplate. |
+| FastMCP (`fastmcp` on PyPI) | Python | User prefers Python or is wrapping a Python library. Decorator-based, low boilerplate. |
 
-**Do not use FastMCP 1.0** (the frozen version bundled in the official `mcp` Python SDK). Use jlowin's `fastmcp` 3.x from PyPI.
+**Do not use the frozen FastMCP copy bundled in the official `mcp` Python SDK.** Install jlowin's standalone `fastmcp` package from PyPI.
+
+**Versions.** Always use the latest stable release of the chosen SDK and target the latest stable MCP spec revision. Check the current docs or package registry for both before scaffolding; do not rely on a remembered version. Function names and snippets in the reference files may have changed since they were written, so confirm them against the installed SDK.
 
 If the user already has a language preference, go with it. Both produce identical wire protocol.
 
@@ -209,7 +209,7 @@ See `references/server-capabilities.md` for details on each.
 
 ### Auth
 
-If OAuth is needed, see `references/auth-cimd.md`. Use CIMD (Client ID Metadata Document), the preferred auth mechanism since spec 2025-11-25.
+If OAuth is needed, see `references/auth-cimd.md`. Use CIMD (Client ID Metadata Document), the auth mechanism the MCP spec prefers.
 
 ---
 
@@ -223,7 +223,7 @@ Three layers, in order:
 
 1. **Headless JSON-RPC**: Feed raw JSON-RPC messages into the server. Parse responses. Fast iteration for protocol correctness.
 2. **MCP Inspector**: Official dev tool. Interactive verification of tools, resources, prompts. Catches capability mismatches and malformed responses.
-3. **Real Claude**: Add the server as a custom connector at claude.ai. This catches what unit tests cannot: tool selection accuracy, description ambiguity, parameter inference failures.
+3. **Real Claude**: Connect the server to a real host. Remote: add it as a custom connector at claude.ai. Local stdio: register it with `claude mcp add <name> -- <command>` in Claude Code, or in Claude Desktop's config. This catches what unit tests cannot: tool selection accuracy, description ambiguity, parameter inference failures.
 
 Do not skip layer 3. Type checking and test suites verify code correctness, not feature correctness. A tool can pass every unit test and still be unusable because Claude never selects it.
 
@@ -246,54 +246,6 @@ See `references/server-capabilities.md` for implementation details.
 
 ---
 
-## Anti-patterns
-
-Surface these based on the deployment model chosen in Phase 2. Common anti-patterns apply to both paths. Deployment-specific anti-patterns apply only to the chosen path.
-
-### Common (always surface)
-
-**Tool sprawl.** Do not create one tool per API endpoint. Consolidate commonly chained operations. Merge similar tools that differ by one parameter. Every tool schema consumes tokens on every turn. A server with 30 tools and rich schemas burns 3-5k tokens before the conversation starts.
-
-**Raw API responses.** Do not return unfiltered API payloads. Strip UUIDs, MIME types, and low-level identifiers the LLM cannot act on. Return semantic names and high-signal data. Truncate large result sets with a message: "Showing 10 of 847 results. Refine the query."
-
-**Behavioral instructions in descriptions.** Do not put "always do X", "you must call Y first", or product promotion in tool descriptions. The Anthropic Directory treats this as prompt injection and rejects it. Cross-tool behavioral guidance belongs in the `instructions` field on the server.
-
-**Skipping capability checks.** Before using sampling, roots, or any advanced feature: check `clientCapabilities` after connection. The SDK throws `CapabilityNotSupported` at runtime if the client lacks support. Every capability-dependent code path needs a guard and a working fallback. Different hosts implement different capability subsets. A server tested only against one host will crash on another.
-
-**FastMCP 1.0.** The frozen version bundled in the official `mcp` Python SDK. Use jlowin's `fastmcp` 3.x from PyPI instead. FastMCP 1.0 is stale and will not receive updates.
-
-### Remote HTTP (surface only when remote is chosen)
-
-**Token passthrough.** Never accept a token and forward it to a downstream API. The MCP authorization spec explicitly forbids this. If your server calls another service, exchange the token or use server-own credentials. A token issued for `api.other-service.com` must be rejected even if the signature checks out.
-
-**Wildcard scopes.** Do not define catch-all scopes (`*`, `all`, `full-access`). Do not bundle unrelated privileges into one scope. Broad scopes expand blast radius on token compromise, increase revocation friction, and obscure audit trails. Start with minimal scopes (e.g., `mcp:tools-read`), escalate with targeted challenges.
-
-**Hand-rolling auth or transport.** The SDK ships `mcpAuthMetadataRouter()`, `requireBearerAuth()`, and transport handlers. Use them. Hand-rolling token validation, OAuth flows, or JSON-RPC framing introduces security bugs and falls behind spec changes.
-
-**Uncontrolled DCR.** Dynamic Client Registration is not recommended (use CIMD instead). If DCR is enabled for backward compatibility, restrict to trusted hosts, audit registrations, and apply rate limits. Unauthenticated DCR means anyone can register a client with your authorization server. The confused deputy attack specifically exploits DCR + static client IDs + consent cookies.
-
-**Monolithic servers.** Do not combine database access, file operations, API calls, and email in one server. Each server should have one clear purpose. Isolated failures, independent scaling, clear ownership.
-
-### Local stdio (surface only when local is chosen)
-
-**Local stdio for distribution.** Do not distribute local stdio servers to end users. Users need the right runtime installed. No push updates. Fragile across environments. If the user intends to distribute, push toward remote HTTP. Note that MCPB (bundled local servers with packaged runtime) is the sanctioned way to ship local servers when local execution is required, but this skill does not yet cover MCPB packaging.
-
----
-
-## Decision matrix
-
-| Scenario | Deployment | Tool pattern |
-|---|---|---|
-| Wrap a small SaaS API | Remote HTTP | One-per-action |
-| Wrap a large SaaS API (50+ endpoints) | Remote HTTP | Search + execute |
-| SaaS API + complex auth | Remote HTTP + CIMD | One-per-action |
-| Read local filesystem | Local stdio | One-per-action |
-| Drive a local desktop app | Local stdio | One-per-action |
-| Personal prototype | Local stdio | Whatever is fastest |
-| Broad distribution | Remote HTTP | Depends on surface |
-
----
-
 ## Reference files
 
 - `references/tool-design.md` -- tool descriptions, schemas, annotations, return shapes, output size limits (`anthropic/maxResultSizeChars`), error handling, content types
@@ -303,3 +255,4 @@ Surface these based on the deployment model chosen in Phase 2. Common anti-patte
 - `references/server-capabilities.md` -- instructions, sampling, progress, resource templates, capability guards
 - `references/testing.md` -- headless JSON-RPC, MCP Inspector, real Claude testing
 - `references/cloudflare-workers.md` -- Cloudflare Workers deployment scaffold
+- `references/anti-patterns.md` -- common, remote-only, and local-only anti-patterns to surface after Phase 2

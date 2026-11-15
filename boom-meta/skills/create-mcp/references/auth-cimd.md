@@ -1,6 +1,6 @@
 # Auth: CIMD (Client ID Metadata Document)
 
-CIMD is the preferred auth mechanism for MCP servers since spec version 2025-11-25. The spec promoted CIMD to SHOULD and demoted Dynamic Client Registration (DCR) to MAY.
+CIMD is the preferred auth mechanism for MCP servers. The spec promoted CIMD to SHOULD and demoted Dynamic Client Registration (DCR) to MAY.
 
 ---
 

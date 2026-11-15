@@ -91,7 +91,7 @@ Use absolute paths. Relative paths are unreliable.
 
 ---
 
-## Python (FastMCP 3.x)
+## Python (FastMCP)
 
 ### Setup
 

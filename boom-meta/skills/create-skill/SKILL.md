@@ -20,6 +20,7 @@ Build a well-structured Claude Code plugin skill through guided co-design.
 3. **Specificity is calibrated, not maximized.** A domain-knowledge skill needs code examples. A workflow skill needs prose directives. Both need explicit constraints. Neither needs the other's patterns forced onto it.
 4. **Every reference must resolve.** No file path in SKILL.md may point to a file that does not exist. Verify before finalizing.
 5. **Context cost is real.** Every token in SKILL.md is loaded into context on every invocation. Justify the cost of every section. Split to references/ when content is conditionally needed.
+6. **Don't state the obvious.** Claude already knows how to code and how to read a codebase. Content earns its place by changing what Claude would otherwise do: a fact it lacks, a default it gets wrong, a failure it has actually hit. Cut the rest.
 
 ## Phase 0: Understand the Intent
 
@@ -34,6 +35,16 @@ From the response, extract:
 - **Duration** -- single-turn task or multi-phase workflow?
 - **Agent needs** -- does this require parallel research, review, or orchestration?
 - **Invocation model** -- user-invoked only, model-invoked only, or both?
+- **Default failures** -- what does Claude get wrong, or do differently than wanted, when it handles this without the skill?
+- **Memory** -- would a later run do better knowing what an earlier run did or produced?
+- **Hard rules** -- is there an action that must never happen while this skill is in use?
+- **Plumbing** -- is there code Claude would otherwise rewrite on every run?
+
+If the description does not cover default failures, ask for them before classifying:
+
+> When Claude has done this without a skill, what went wrong or needed correcting?
+
+The answers seed the Gotchas section and decide which content is worth including. If the user has none yet, proceed; the section starts empty and grows with use.
 
 ## Phase 1: Classify and Confirm
 
@@ -45,23 +56,23 @@ Classify the skill into one of three types based on the extracted intent:
 
 Signals: the skill is about a file format, API, library, framework, creative medium, or technical domain. The output is a generated artifact (file, code, document). The task completes in a single model turn. No sub-agent coordination needed.
 
-Examples: docx, pdf, xlsx, pptx, claude-api, algorithmic-art, andrew-kane-gem-writer.
+Examples: a spreadsheet-file skill, an internal SDK reference, a house style for generated art.
 
-**Process skill** -- defines a multi-step workflow the model follows. The user brings the problem; the skill brings the procedure. The model's judgment is constrained to documented decision points within each phase.
+**Process skill** -- defines a multi-step workflow the model follows. The user brings the problem; the skill brings the procedure. The procedure fixes the order of phases and the gates between them; inside a phase the model keeps its judgment.
 
 Signals: the task spans multiple phases with intermediate outputs. The skill needs conditional branching, agent dispatch, or user interaction gates. The output is a decision, plan, diagnosis, or knowledge capture. Wrong output is subtle (missed root cause, incomplete plan) rather than visually obvious.
 
-Examples: ce-debug, ce-plan, ce-brainstorm, ce-compound, ce-compound-refresh, ce-ideate.
+Examples: a debugging workflow, an implementation-planning workflow, a post-incident write-up.
 
 **Hybrid skill** -- combines domain knowledge with a structured workflow. Part of the skill is reference material; part is a phased procedure.
 
 Signals: the skill teaches a domain AND defines how to apply it step by step. The reference sections are consulted during specific workflow phases.
 
-Examples: skill-creator (teaches skill writing + defines create-eval-improve workflow), mcp-builder (teaches MCP protocol + defines 4-phase build process).
+Examples: this plugin's `create-mcp` (teaches MCP server design + defines a phased build process).
 
 ### 1.2 Determine Structural Parameters
 
-Based on the skill type, set these parameters silently (do not present them as choices):
+Based on the skill type, set these parameters silently (do not present them as choices). They are defaults, not rules: depart from one when the skill's content calls for it.
 
 **Capability skill defaults:**
 - Document structure: flat H2/H3, random-access sections
@@ -69,7 +80,7 @@ Based on the skill type, set these parameters silently (do not present them as c
 - Heading depth: H3 max (H4 only for deeply nested reference subsections)
 - File split threshold: >3,000 tokens in SKILL.md triggers split to references/
 - Agent integration: none unless the skill involves evaluation or review
-- Coupling: standalone (zero cross-skill references)
+- Coupling: standalone unless another skill already covers part of the task (see 3.2)
 
 **Process skill defaults:**
 - Document structure: numbered phases (Phase 0, 1, 2, ...)
@@ -78,7 +89,7 @@ Based on the skill type, set these parameters silently (do not present them as c
 - File split threshold: >2,000 tokens OR conditionally-needed content triggers split to references/
 - Agent integration: likely -- plan for research and review dispatch points
 - Coupling: determined by whether this skill fits into a larger workflow
-- Phase 0: always include resume detection and routing/triage
+- Phase 0: routing/triage; add resume detection when the skill writes artifacts that outlive a session
 - Constraints: repeat at decision points where drift is likely
 
 **Hybrid skill defaults:**
@@ -97,10 +108,12 @@ Present the classification to the user in this format:
 > **Invocation:** [user-only / model-only / both] -- [reason]
 > **Execution:** [inline / subagent (`context: fork`)] -- [reason]
 
-Examples:
-- "**Type:** Capability -- it teaches the model how to work with GraphQL schemas. **Structure:** flat reference with code examples organized by task type."
-- "**Type:** Process -- it defines a debugging workflow with investigation, diagnosis, and fix phases. **Structure:** numbered phases with conditional gates."
-- "**Type:** Hybrid -- it teaches Terraform patterns AND defines a plan-apply-verify workflow. **Structure:** reference sections feed into specific workflow phases."
+Example:
+
+> **Type:** Process -- it defines a debugging workflow with investigation, diagnosis, and fix phases.
+> **Structure:** numbered phases with conditional gates.
+> **Invocation:** both -- users call it by name, and Claude should reach for it when a bug report comes in.
+> **Execution:** inline -- the fix phase needs the conversation's context.
 
 Wait for the user to confirm or correct before proceeding.
 
@@ -157,7 +170,6 @@ The description is the primary activation surface. Quality rules:
 - Include 3-5 explicit trigger phrases ("Use when the user says...")
 - For complex skills, include negative triggers ("Do NOT use when...")
 - Length guidance: 200-400 chars for focused skills, 400-700 chars for broad skills
-- Longer descriptions correlate with more precise routing -- do not compress for brevity
 
 **Capability skill description formula:**
 
@@ -178,6 +190,16 @@ Based on the skill type and the user's described requirements, design the sectio
 **For hybrid skills**, combine both: reference sections first (flat), then workflow section (phased). Apply the relevant patterns from both reference files.
 
 If the skill uses arguments, shell injection, subagent execution, or scoped activation, read `references/advanced-patterns.md` for string substitution variables, dynamic context injection syntax, and execution patterns.
+
+If the skill exists to check work (it verifies code, output, or a running product), read `references/verification-patterns.md` for where the check should run, how to write checks that can fail, and how to close the loop.
+
+If a later run should know what an earlier run did (recaps, standups, monitoring, anything recurring), read `references/persistent-data.md` for where to store it and how to read it back.
+
+If the skill has a rule that must hold no matter what (a command that must never run, files that must not be touched), read `references/hook-patterns.md` for a skill-scoped guard and how to test it safely.
+
+If the skill bundles scripts or helper functions, read `references/script-patterns.md` for how to structure and list them.
+
+**Every skill gets a `## Gotchas` section**, whatever its type. It lists the specific failures Claude hits in this domain, one line each with the correct behavior, seeded from the default failures gathered in Phase 0. It is the highest-signal content in the skill and the part that keeps growing: close the section with a note to the maintainer to add an entry whenever the skill produces a wrong result.
 
 Present the proposed section outline to the user. One level of headings only -- do not expand sub-sections yet. Ask if the coverage matches their intent.
 
@@ -233,24 +255,52 @@ Work through the outline section by section with the user. For each section:
 2. Apply constraint design rules from `references/constraint-patterns.md`
 3. Verify every file path reference points to a file that exists (or will be created)
 4. For process skills: check that each phase has a clear entry condition, exit condition, and handoff
+5. Ask of each section: would Claude do this anyway? If yes, cut it
 
 ### 3.1 Constraint Design
 
-Constraints are the most important content in any skill. Rules for writing them:
+Constraints mark the points where the model must not improvise. Everywhere else, give the goal and the relevant facts and let the model adapt: a skill is reused in situations its author did not foresee, and a step-by-step script written for one of them misfires in the others. Rules for writing constraints:
 
 - State constraints where they matter, not only at the top
 - For process skills: repeat critical constraints at the decision points where drift is most likely. This is deliberate, not redundant.
-- Use absolute language: "NEVER", "ALWAYS", "Do not" -- not "try to avoid", "prefer not to"
+- Match force to stakes. Use absolute language ("Never", "Do not") for rules whose violation breaks or destroys something. For preferences, state the goal and the reason in plain directives; absolutes on everything get over-applied and stop the hard rules standing out
+- Do not hedge a hard rule: "try to avoid" and "prefer not to" read as optional
 - Pair every constraint with its rationale -- a constraint without a reason gets ignored under pressure
 - For code-domain constraints: embed in code comments at the point of use (`# CRITICAL: never require Rails directly`)
 - For behavioral constraints: state as prose directives with the consequence of violation
 
 ### 3.2 Cross-Reference Design
 
-**Standalone skills:** No cross-references. Every capability the skill needs must be self-contained or delegated to scripts.
+Skills compose by naming each other. If another skill already covers part of the task, reference it instead of duplicating its content. The model invokes a referenced skill only if it is installed, so how to reference it depends on where it lives:
 
-**Pipeline skills:** Define explicit handoff points with conditions:
-- Name the target skill by its invocation syntax (`/ce:brainstorm`, `document-review`)
+| Referenced skill lives in | Reliable? | What to do |
+|---|---|---|
+| The same plugin | Always; they ship together | Reference it by name |
+| Another plugin in the same marketplace | Yes, once declared | Add that plugin to `dependencies` in this plugin's `.claude-plugin/plugin.json` |
+| A plugin in another marketplace | Only if this marketplace allowlists it | Prefer a soft reference: "If `<skill>` is available, apply it first", written so the skill still works without it |
+
+Declaring a dependency:
+
+```json
+{
+  "name": "this-plugin",
+  "dependencies": [
+    "other-plugin",
+    { "name": "another-plugin", "version": "^1.0" }
+  ]
+}
+```
+
+A bare name resolves against this plugin's own marketplace, and a missing dependency is installed along with the plugin. The cost is that this plugin no longer loads without the other one. When the plugin should stay installable on its own, use the soft form and skip the declaration.
+
+When the new skill references a skill in another plugin, tell the user which form you chose and why, and for the declared form edit `plugin.json` as part of Phase 4.
+
+For every cross-reference:
+- Refer to the skill by its full name (`/plugin-name:skill-name`)
+- Say when to invoke it and what it is for; do not restate its content
+
+**Pipeline skills** additionally define explicit handoff points with conditions:
+- Name the target skill by its invocation syntax (`/plugin-name:skill-name`)
 - State the condition that triggers the handoff
 - State what data passes to the next skill
 - Make handoffs user-choice, not automatic (unless the skill is designed for autonomous pipelines)
@@ -270,13 +320,9 @@ Constraints are the most important content in any skill. Rules for writing them:
     <template>.md
 ```
 
-Reference bundled scripts and assets from SKILL.md using `${CLAUDE_SKILL_DIR}` for portable paths:
+Reference bundled scripts and assets from SKILL.md through the skill-directory variable, not a relative or absolute path, so the reference works from any working directory. Read the "String Substitution Variables" section of `references/advanced-patterns.md` for the exact syntax and an example.
 
-```bash
-python ${CLAUDE_SKILL_DIR}/scripts/validate.py $ARGUMENTS
-```
-
-This resolves to the skill's directory regardless of the user's working directory. For plugin skills, it points to the skill's subdirectory within the plugin, not the plugin root.
+The variable names are deliberately not written here. Substitution variables in a SKILL.md body are replaced with real values when the skill loads, so writing them in this file would show this skill's own paths and arguments instead of the syntax. Reference files are read as plain text and are safe to show them in.
 
 ### 4.2 Write SKILL.md
 
@@ -284,7 +330,7 @@ Write the complete SKILL.md incorporating all content from Phase 3.
 
 ### 4.3 Write reference files
 
-For each reference file identified in Phase 2.4, write the content. Each reference file:
+For each reference file identified in Phase 2.5, write the content. Each reference file:
 - Has no YAML frontmatter (frontmatter is only for SKILL.md)
 - Opens with an H1 title
 - Is self-contained enough to be useful when loaded mid-workflow
@@ -301,11 +347,17 @@ Before presenting the result, verify:
 | Description includes 3-5 trigger phrases | All skills |
 | Complex skills include negative triggers ("Do NOT use when...") | Broad skills |
 | Every file path in SKILL.md resolves to an existing file | All skills |
+| Stored data lives in the plugin data directory or the project, never the skill's own folder, and a first run with no data works | Skills that store data |
+| Every hook has the fail-closed wrapper and was seen to block the canary command | Skills with hooks |
+| Every bundled script is listed in SKILL.md with a one-line purpose | Skills with scripts |
+| Every skill referenced from another plugin is either declared in `plugin.json` `dependencies` or written as a soft reference | Skills with cross-references |
 | SKILL.md token count within budget (3K capability, 6K process) | All skills |
 | SKILL.md under 500 lines | All skills |
 | Critical instructions in the first 5,000 tokens | All skills |
 | Every phase has entry/exit conditions | Process skills |
-| Every major section has at least one code example or concrete reference | Capability skills |
+| Gotchas section exists, seeded with the Phase 0 default failures | All skills |
+| No section restates what Claude would do without the skill | All skills |
+| Sections where Claude's default is wrong show the correct form as a code example or concrete reference | Capability skills |
 | Reference sections use flat H2/H3 structure | Hybrid skills |
 | Workflow sections use phased H3/H4 structure | Hybrid skills |
 | `disable-model-invocation: true` set for side-effect workflows | Destructive skills |
@@ -314,4 +366,17 @@ Before presenting the result, verify:
 
 Read the SKILL.md from top to bottom as if encountering it for the first time -- does the structure make sense without prior context?
 
-Present the complete file listing and ask the user to review.
+### 4.5 Trial Run
+
+The checklist shows the skill is well-formed, not that it works. Before handing over, check both:
+
+- **Does it work.** Run the skill once on a realistic task and read the result. A skill written in this session may not be loadable yet; if so, dispatch a subagent told to read the new SKILL.md and carry out the task. Each failure becomes a fix or a Gotchas entry.
+- **Does it trigger.** Write two or three prompts that should activate the skill and one near-miss that should not. Check the description against each, revise it if any would route wrongly, and give the prompts to the user to try in a fresh session.
+
+Present the complete file listing, the trial result, and the trigger prompts, and ask the user to review.
+
+## Gotchas
+
+- A substitution variable written in a SKILL.md body as documentation or as an example is replaced with a real value when the skill loads, so the reader sees a path or the user's arguments instead of the syntax. Write a variable in SKILL.md only where it should be substituted; put syntax examples in a reference file.
+
+Add an entry here whenever this skill produces a skill that needed correcting: what went wrong, and what to do instead.
